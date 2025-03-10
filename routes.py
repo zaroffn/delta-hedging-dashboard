@@ -244,6 +244,27 @@ def configure_routes(app, hedger):
     # Add data management routes
     add_data_routes(app, hedger)
 
+@app.route('/api/stock-position', methods=['POST'])
+def api_add_stock_position():
+    """API endpoint to add a new direct stock position"""
+    try:
+        data = request.json
+        
+        # Convert string date to date object
+        date = dt.datetime.strptime(data['date'], "%Y-%m-%d").date()
+        
+        # Add manual stock position
+        result = hedger.add_stock_position(
+            date=date,
+            price=float(data['price']),
+            position_type=data['position_type'],  # 'LONG' or 'SHORT'
+            shares=int(data['shares'])
+        )
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error adding stock position: {str(e)}"})
+
 # README.md - Setup Instructions
 """
 # Delta Hedging Dashboard
