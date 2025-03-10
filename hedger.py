@@ -23,6 +23,66 @@ class DeltaHedger:
         self.current_capital: float = 0
         self.transaction_costs: Dict = {'stock_fixed': 0, 'stock_percentage': 0}
         self.filename = filename
+        def add_stock_position(self, date, price, position_type, shares):
+    """Add a direct stock position (long or short)"""
+    # Convert shares to positive or negative based on position type
+    actual_shares = shares if position_type == 'LONG' else -shares
+    
+    # Calculate transaction cost
+    transaction_cost = self._calculate_transaction_cost(abs(actual_shares), price)
+    
+    # Update capital
+    position_cost = abs(actual_shares) * price
+    self.current_capital -= (position_cost + transaction_cost)
+    
+    # Update stock position
+    self.current_stock_units += actual_shares
+    
+    # Record the transaction
+    transaction = {
+        'date': date.isoformat(),
+        'shares': abs(actual_shares),
+        'price': price,
+        'action': position_type,
+        'cost': position_cost,
+        'transaction_fee': transaction_cost,
+        'type': 'MANUAL'  # Flag to indicate a manual position vs. a hedge adjustment
+    }
+    
+    self.stock_transactions.append(transaction)
+    
+    # Add to position history
+    if self.position_history:
+        latest = self.position_history[-1]
+        new_position = latest.copy()
+        new_position['date'] = date.isoformat()
+        new_position['stock_position'] = self.current_stock_units
+        new_position['capital'] = self.current_capital
+        new_position['transaction_type'] = 'MANUAL'
+        self.position_history.append(new_position)
+    else:
+        # If no history exists yet, create initial entry
+        self.position_history.append({
+            'date': date.isoformat(),
+            'underlying_price': price,
+            'iv': 0.0,
+            'delta': 0.0,
+            'stock_position': self.current_stock_units,
+            'capital': self.current_capital,
+            'transaction_type': 'MANUAL'
+        })
+    
+    # Save data
+    self.save_data()
+    
+    return {
+        "status": "success",
+        "message": f"{position_type} position: {shares} shares at ${price:.2f}",
+        "action": position_type,
+        "shares": shares,
+        "price": price,
+        "fee": transaction_cost
+    }
         
         # Load data if exists
         self.load_data()
