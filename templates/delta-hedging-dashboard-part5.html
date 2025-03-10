@@ -1,0 +1,307 @@
+<!-- templates/index.html -->
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <!-- Current Position -->
+    <div class="card bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+        <h3 class="text-lg font-semibold mb-2">Current Position</h3>
+        <div class="text-3xl font-bold" id="current-position">{{ summary.current_stock|round(2) }}</div>
+        <p class="text-blue-100">Stock units</p>
+    </div>
+    
+    <!-- Current Price -->
+    <div class="card bg-gradient-to-br from-green-500 to-emerald-600 text-white">
+        <h3 class="text-lg font-semibold mb-2">Current Price</h3>
+        <div class="text-3xl font-bold" id="current-price">${{ summary.current_price|round(2) }}</div>
+        <p class="text-green-100">Per share</p>
+    </div>
+    
+    <!-- Available Capital -->
+    <div class="card bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white">
+        <h3 class="text-lg font-semibold mb-2">Available Capital</h3>
+        <div class="text-3xl font-bold" id="current-capital">${{ summary.current_capital|round(2) }}</div>
+        <p class="text-purple-100">For trading</p>
+    </div>
+    
+    <!-- P&L -->
+    <div class="card {% if summary.pnl >= 0 %}bg-gradient-to-br from-emerald-500 to-green-600{% else %}bg-gradient-to-br from-red-500 to-rose-600{% endif %} text-white">
+        <h3 class="text-lg font-semibold mb-2">P&L</h3>
+        <div class="text-3xl font-bold" id="current-pnl">${{ summary.pnl|round(2) }}</div>
+        <p class="{% if summary.pnl >= 0 %}text-emerald-100{% else %}text-red-100{% endif %}" id="current-pnl-percent">{{ summary.pnl_percent|round(2) }}%</p>
+    </div>
+</div>
+
+<!-- Quick Add Data Form -->
+<div class="card mb-6">
+    <h3 class="text-xl font-semibold mb-4">Add New Option Data</h3>
+    <form id="quick-add-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <input type="date" name="date" class="input w-full" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock Price</label>
+            <input type="number" name="underlying_price" step="0.01" min="0" class="input w-full" required placeholder="0.00">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Strike Price</label>
+            <input type="number" name="strike_price" step="0.01" min="0" class="input w-full" required placeholder="0.00">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Option Price</label>
+            <input type="number" name="option_price" step="0.01" min="0" class="input w-full" required placeholder="0.00">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Implied Volatility</label>
+            <input type="number" name="iv" step="0.001" min="0" max="1" class="input w-full" required placeholder="0.25">
+            <small class="text-gray-500">Enter as decimal (e.g., 0.25 for 25%)</small>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Delta</label>
+            <input type="number" name="delta" step="0.001" min="-1" max="1" class="input w-full" required placeholder="0.50">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Expiration Date</label>
+            <input type="date" name="expiration" class="input w-full" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Option Type</label>
+            <select name="option_type" class="select w-full" required>
+                <option value="call">Call</option>
+                <option value="put">Put</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Number of Contracts</label>
+            <input type="number" name="position_size" min="1" step="1" class="input w-full" required value="1">
+        </div>
+        <div class="md:col-span-2 lg:col-span-3">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i> Add Data & Update Hedge
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Latest Hedge Recommendation -->
+<div class="card mb-6 hidden" id="hedge-recommendation">
+    <h3 class="text-xl font-semibold mb-4">Hedge Recommendation</h3>
+    <div id="recommendation-content" class="p-4 rounded-md border border-gray-200">
+        <!-- Will be populated by JavaScript -->
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+    <h3 class="text-xl font-semibold mb-4">Recent Activity</h3>
+    <div class="table-container">
+        <table class="table" id="recent-transactions">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>Shares</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Fee</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Will be populated by JavaScript -->
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-gray-500">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const quickAddForm = document.getElementById('quick-add-form');
+        const hedgeRecommendation = document.getElementById('hedge-recommendation');
+        const recommendationContent = document.getElementById('recommendation-content');
+        const recentTransactionsTable = document.getElementById('recent-transactions');
+        
+        // Prefill date fields with today's date
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelector('input[name="date"]').value = today;
+        
+        // Set default expiration date (1 month from now)
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        document.querySelector('input[name="expiration"]').value = nextMonth.toISOString().split('T')[0];
+        
+        // Handle form submission
+        quickAddForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(quickAddForm);
+            const jsonData = {};
+            
+            for (const [key, value] of formData.entries()) {
+                jsonData[key] = value;
+            }
+            
+            // Submit data
+            fetch('/api/option-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(jsonData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    
+                    // Show recommendation
+                    hedgeRecommendation.classList.remove('hidden');
+                    
+                    let content = '';
+                    if (data.action === 'BUY') {
+                        content = `
+                            <div class="bg-green-50 text-green-800 p-4 rounded-md">
+                                <div class="flex items-center">
+                                    <div class="mr-4 text-3xl">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-lg font-semibold">Buy ${formatNumber(data.shares)} shares at ${formatCurrency(data.price)}</h4>
+                                        <p>Transaction cost: ${formatCurrency(data.fee || 0)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (data.action === 'SELL') {
+                        content = `
+                            <div class="bg-red-50 text-red-800 p-4 rounded-md">
+                                <div class="flex items-center">
+                                    <div class="mr-4 text-3xl">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-lg font-semibold">Sell ${formatNumber(data.shares)} shares at ${formatCurrency(data.price)}</h4>
+                                        <p>Transaction cost: ${formatCurrency(data.fee || 0)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        content = `
+                            <div class="bg-blue-50 text-blue-800 p-4 rounded-md">
+                                <div class="flex items-center">
+                                    <div class="mr-4 text-3xl">
+                                        <i class="fas fa-equals"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-lg font-semibold">No adjustment needed</h4>
+                                        <p>Your current hedge position is adequate.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    recommendationContent.innerHTML = content;
+                    
+                    // Update dashboard
+                    refreshDashboard();
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error submitting data: ' + error, 'error');
+            });
+        });
+        
+        // Load recent transactions
+        function loadRecentTransactions() {
+            fetch('/api/transactions')
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    recentTransactionsTable.querySelector('tbody').innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-gray-500">No transactions yet</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Sort by date (most recent first)
+                data.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Limit to most recent 5
+                const recentData = data.slice(0, 5);
+                
+                let html = '';
+                recentData.forEach(tx => {
+                    html += `
+                        <tr>
+                            <td>${formatDate(tx.date)}</td>
+                            <td class="${tx.action === 'BUY' ? 'text-green-600' : 'text-red-600'}">${tx.action}</td>
+                            <td>${formatNumber(tx.shares)}</td>
+                            <td>${formatCurrency(tx.price)}</td>
+                            <td>${formatCurrency(tx.cost)}</td>
+                            <td>${formatCurrency(tx.transaction_fee || 0)}</td>
+                        </tr>
+                    `;
+                });
+                
+                recentTransactionsTable.querySelector('tbody').innerHTML = html;
+            })
+            .catch(error => {
+                showToast('Error loading transactions: ' + error, 'error');
+            });
+        }
+        
+        // Update dashboard summary
+        function updateSummary() {
+            fetch('/api/summary')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('current-position').textContent = formatNumber(data.current_stock);
+                document.getElementById('current-price').textContent = formatCurrency(data.current_price);
+                document.getElementById('current-capital').textContent = formatCurrency(data.current_capital);
+                document.getElementById('current-pnl').textContent = formatCurrency(data.pnl);
+                document.getElementById('current-pnl-percent').textContent = `${formatNumber(data.pnl_percent)}%`;
+                
+                // Update P&L card color
+                const pnlCard = document.getElementById('current-pnl').closest('.card');
+                if (data.pnl >= 0) {
+                    pnlCard.className = 'card bg-gradient-to-br from-emerald-500 to-green-600 text-white';
+                    document.getElementById('current-pnl-percent').className = 'text-emerald-100';
+                } else {
+                    pnlCard.className = 'card bg-gradient-to-br from-red-500 to-rose-600 text-white';
+                    document.getElementById('current-pnl-percent').className = 'text-red-100';
+                }
+                
+                updateLastUpdated();
+            })
+            .catch(error => {
+                showToast('Error updating summary: ' + error, 'error');
+            });
+        }
+        
+        // Refresh all dashboard data
+        function refreshDashboard() {
+            updateSummary();
+            loadRecentTransactions();
+        }
+        
+        // Initial data load
+        refreshDashboard();
+        
+        // Set up auto-refresh (every 30 seconds)
+        setInterval(refreshDashboard, 30000);
+    });
+</script>
+{% endblock %}

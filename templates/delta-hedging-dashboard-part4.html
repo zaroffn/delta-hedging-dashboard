@@ -1,0 +1,245 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delta Hedging Dashboard</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    
+    <!-- Custom styles -->
+    <style>
+        .nav-link {
+            @apply flex items-center px-4 py-2 text-gray-600 rounded transition-colors duration-200;
+        }
+        .nav-link:hover {
+            @apply bg-indigo-50 text-indigo-700;
+        }
+        .nav-link.active {
+            @apply bg-indigo-500 text-white;
+        }
+        .nav-link.active:hover {
+            @apply bg-indigo-600 text-white;
+        }
+        .card {
+            @apply bg-white rounded-lg shadow-md p-6 mb-4;
+        }
+        .btn {
+            @apply px-4 py-2 rounded-md transition-colors duration-200;
+        }
+        .btn-primary {
+            @apply bg-indigo-500 text-white hover:bg-indigo-600;
+        }
+        .btn-secondary {
+            @apply bg-gray-500 text-white hover:bg-gray-600;
+        }
+        .btn-danger {
+            @apply bg-red-500 text-white hover:bg-red-600;
+        }
+        .btn-success {
+            @apply bg-green-500 text-white hover:bg-green-600;
+        }
+        .input {
+            @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+        }
+        .select {
+            @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+        }
+        .table-container {
+            @apply overflow-x-auto;
+        }
+        .table {
+            @apply min-w-full bg-white divide-y divide-gray-200;
+        }
+        .table th {
+            @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+        }
+        .table td {
+            @apply px-6 py-4 whitespace-nowrap;
+        }
+        .table tr {
+            @apply hover:bg-gray-50;
+        }
+        /* Toast notifications */
+        #toast-container {
+            @apply fixed top-4 right-4 z-50 flex flex-col gap-2;
+        }
+        .toast {
+            @apply rounded-md shadow-md p-4 flex items-start min-w-[300px] transition-all duration-300 transform translate-x-full;
+        }
+        .toast-success {
+            @apply bg-green-100 border-l-4 border-green-500 text-green-800;
+        }
+        .toast-error {
+            @apply bg-red-100 border-l-4 border-red-500 text-red-800;
+        }
+        .toast-info {
+            @apply bg-blue-100 border-l-4 border-blue-500 text-blue-800;
+        }
+        .toast.show {
+            @apply translate-x-0;
+        }
+    </style>
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-64 bg-white h-screen shadow-md fixed">
+            <div class="p-4">
+                <h1 class="text-xl font-bold text-indigo-700">Delta Hedging</h1>
+                <p class="text-sm text-gray-500">Dashboard</p>
+            </div>
+            <nav class="mt-4">
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.path == url_for('index') %}active{% endif %}">
+                    <i class="fas fa-home mr-2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('data') }}" class="nav-link {% if request.path == url_for('data') %}active{% endif %}">
+                    <i class="fas fa-database mr-2"></i> Data Management
+                </a>
+                <a href="{{ url_for('analysis') }}" class="nav-link {% if request.path == url_for('analysis') %}active{% endif %}">
+                    <i class="fas fa-chart-line mr-2"></i> Analysis
+                </a>
+                <a href="{{ url_for('settings') }}" class="nav-link {% if request.path == url_for('settings') %}active{% endif %}">
+                    <i class="fas fa-cog mr-2"></i> Settings
+                </a>
+            </nav>
+        </div>
+        
+        <!-- Main content -->
+        <div class="ml-64 w-full">
+            <header class="bg-white shadow-sm p-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-700">{% block title %}{% endblock %}</h2>
+                    <div>
+                        <span id="last-updated" class="text-sm text-gray-500">
+                            <i class="fas fa-sync-alt mr-1"></i> Last updated: Never
+                        </span>
+                    </div>
+                </div>
+            </header>
+            
+            <main class="p-6">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Toast container for notifications -->
+    <div id="toast-container"></div>
+    
+    <!-- Common JS -->
+    <script>
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.classList.add('toast', `toast-${type}`);
+            
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'error') icon = 'exclamation-circle';
+            
+            toast.innerHTML = `
+                <div class="flex">
+                    <div class="mr-3">
+                        <i class="fas fa-${icon}"></i>
+                    </div>
+                    <div class="flex-1">
+                        ${message}
+                    </div>
+                    <button class="ml-4 text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Show the toast with animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Close button
+            toast.querySelector('button').addEventListener('click', () => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(toast);
+                }, 300);
+            });
+            
+            // Auto close
+            if (duration > 0) {
+                setTimeout(() => {
+                    if (container.contains(toast)) {
+                        toast.classList.remove('show');
+                        setTimeout(() => {
+                            if (container.contains(toast)) {
+                                container.removeChild(toast);
+                            }
+                        }, 300);
+                    }
+                }, duration);
+            }
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            if (!dateString || dateString === 'N/A') return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+        
+        // Format currency
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(value);
+        }
+        
+        // Format percentage
+        function formatPercent(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'percent',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value / 100);
+        }
+        
+        // Format number with commas
+        function formatNumber(value, decimals = 2) {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            }).format(value);
+        }
+        
+        // Update the "last updated" timestamp
+        function updateLastUpdated() {
+            const element = document.getElementById('last-updated');
+            if (element) {
+                const now = new Date();
+                element.innerHTML = `<i class="fas fa-sync-alt mr-1"></i> Last updated: ${now.toLocaleTimeString()}`;
+            }
+        }
+        
+        // Call this when data is refreshed
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLastUpdated();
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!-- templates/settings.html -->
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Transaction Costs -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Transaction Costs</h3>
+        <p class="text-gray-600 mb-4">Set your broker's fee structure for more accurate hedge calculations.</p>
+        
+        <form id="transaction-costs-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Fixed Fee per Trade ($)</label>
+                <input type="number" name="fixed" id="fixed-fee" min="0" step="0.01" class="input w-full" value="{{ transaction_costs.stock_fixed }}">
+                <small class="text-gray-500">Flat fee charged for each trade (e.g., $4.95)</small>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Percentage Fee (%)</label>
+                <input type="number" name="percentage" id="percentage-fee" min="0" step="0.0001" class="input w-full" value="{{ transaction_costs.stock_percentage * 100 }}">
+                <small class="text-gray-500">Percentage of trade value (e.g., 0.35%)</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full">
+                Save Transaction Cost Settings
+            </button>
+        </form>
+    </div>
+    
+    <!-- Initial Capital -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Initial Capital</h3>
+        <p class="text-gray-600 mb-4">Set your starting capital for P&L calculations.</p>
+        
+        <form id="initial-capital-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Initial Capital ($)</label>
+                <input type="number" name="initial_capital" id="initial-capital" min="0" step="1" class="input w-full" value="{{ initial_capital or 100000 }}">
+                <small class="text-gray-500">Your starting capital before hedging</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full">
+                Save Initial Capital
+            </button>
+        </form>
+    </div>
+    
+    <!-- Data Management -->
+    <div class="card md:col-span-2">
+        <h3 class="text-xl font-semibold mb-4">Data Management</h3>
+        <p class="text-gray-600 mb-4">Manage your hedge data.</p>
+        
+        <div class="flex flex-col md:flex-row gap-4">
+            <button id="export-data-btn" class="btn btn-primary flex-1">
+                <i class="fas fa-download mr-2"></i> Export Data
+            </button>
+            
+            <label for="import-data-file" class="btn btn-secondary flex-1 text-center cursor-pointer">
+                <i class="fas fa-upload mr-2"></i> Import Data
+            </label>
+            <input type="file" id="import-data-file" class="hidden" accept=".json">
+            
+            <button id="clear-data-btn" class="btn btn-danger flex-1">
+                <i class="fas fa-trash mr-2"></i> Clear All Data
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const transactionCostsForm = document.getElementById('transaction-costs-form');
+        const initialCapitalForm = document.getElementById('initial-capital-form');
+        const exportDataBtn = document.getElementById('export-data-btn');
+        const importDataFile = document.getElementById('import-data-file');
+        const clearDataBtn = document.getElementById('clear-data-btn');
+        
+        // Handle transaction costs form
+        transactionCostsForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fixedFee = parseFloat(document.getElementById('fixed-fee').value) || 0;
+            const percentageFee = parseFloat(document.getElementById('percentage-fee').value) / 100 || 0;
+            
+            fetch('/api/transaction-costs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fixed: fixedFee,
+                    percentage: percentageFee
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error updating transaction costs: ' + error, 'error');
+            });
+        });
+        
+        // Handle initial capital form
+        initialCapitalForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const initialCapital = parseFloat(document.getElementById('initial-capital').value) || 100000;
+            
+            fetch('/api/initial-capital', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    initial_capital: initialCapital
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error updating initial capital: ' + error, 'error');
+            });
+        });
+        
+        // Handle export data
+        exportDataBtn.addEventListener('click', function() {
+            // Get the data from the API endpoint
+            fetch('/api/export-data')
+            .then(response => response.json())
+            .then(data => {
+                // Create a Blob from the JSON data
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                
+                // Create a download link
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'delta_hedge_data.json';
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('Data exported successfully', 'success');
+            })
+            .catch(error => {
+                showToast('Error exporting data: ' + error, 'error');
+            });
+        });
+        
+        // Handle import data
+        importDataFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Send data to the API endpoint
+                    fetch('/api/import-data', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast(data.message, 'success');
+                            // Reload the page to reflect the imported data
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } else {
+                            showToast(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showToast('Error importing data: ' + error, 'error');
+                    });
+                } catch (error) {
+                    showToast('Invalid JSON file: ' + error, 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+        
+        // Handle clear data
+        clearDataBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all hedge data? This action cannot be undone.')) {
+                fetch('/api/clear-data', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                        // Reload the page to reflect the cleared data
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('Error clearing data: ' + error, 'error');
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

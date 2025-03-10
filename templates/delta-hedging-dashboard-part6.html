@@ -1,0 +1,434 @@
+<!-- templates/data.html -->
+{% extends "base.html" %}
+
+{% block title %}Data Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Option Data History</h3>
+        <button id="refresh-data-btn" class="btn btn-primary">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh
+        </button>
+    </div>
+    
+    <div class="table-container">
+        <table class="table" id="option-data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Stock Price</th>
+                    <th>Strike</th>
+                    <th>Option Price</th>
+                    <th>IV</th>
+                    <th>Delta</th>
+                    <th>Expiration</th>
+                    <th>Type</th>
+                    <th>Contracts</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="10" class="text-center py-4 text-gray-500">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold">Edit Option Data</h3>
+            <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <form id="edit-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="hidden" name="index" id="edit-index">
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input type="date" name="date" id="edit-date" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Stock Price</label>
+                <input type="number" name="underlying_price" id="edit-underlying-price" step="0.01" min="0" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Strike Price</label>
+                <input type="number" name="strike_price" id="edit-strike-price" step="0.01" min="0" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Option Price</label>
+                <input type="number" name="option_price" id="edit-option-price" step="0.01" min="0" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Implied Volatility</label>
+                <input type="number" name="iv" id="edit-iv" step="0.001" min="0" max="1" class="input w-full" required>
+                <small class="text-gray-500">Enter as decimal (e.g., 0.25 for 25%)</small>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Delta</label>
+                <input type="number" name="delta" id="edit-delta" step="0.001" min="-1" max="1" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Expiration Date</label>
+                <input type="date" name="expiration" id="edit-expiration" class="input w-full" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Option Type</label>
+                <select name="option_type" id="edit-option-type" class="select w-full" required>
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Number of Contracts</label>
+                <input type="number" name="position_size" id="edit-position-size" min="1" step="1" class="input w-full" required>
+            </div>
+            
+            <div class="md:col-span-2 flex justify-between mt-4">
+                <button type="button" id="delete-btn" class="btn btn-danger">
+                    <i class="fas fa-trash mr-2"></i> Delete
+                </button>
+                <div>
+                    <button type="button" id="cancel-btn" class="btn btn-secondary mr-2">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const optionDataTable = document.getElementById('option-data-table');
+        const editModal = document.getElementById('edit-modal');
+        const editForm = document.getElementById('edit-form');
+        const editIndex = document.getElementById('edit-index');
+        const refreshBtn = document.getElementById('refresh-data-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        
+        // Load option data history
+        function loadOptionData() {
+            fetch('/api/history')
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    optionDataTable.querySelector('tbody').innerHTML = `
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-gray-500">No data available</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Group by date to get the option data entries
+                const optionData = [];
+                const dateMap = new Map();
+                
+                data.forEach((item, index) => {
+                    const date = item.date.split('T')[0];
+                    if (!dateMap.has(date)) {
+                        dateMap.set(date, index);
+                        optionData.push(item);
+                    }
+                });
+                
+                let html = '';
+                optionData.forEach((item, index) => {
+                    html += `
+                        <tr>
+                            <td>${formatDate(item.date)}</td>
+                            <td>${formatCurrency(item.underlying_price)}</td>
+                            <td>${formatCurrency(item.strike_price || 0)}</td>
+                            <td>${formatCurrency(item.option_price || 0)}</td>
+                            <td>${formatPercent(item.iv)}</td>
+                            <td>${formatNumber(item.delta, 4)}</td>
+                            <td>${formatDate(item.expiration || '')}</td>
+                            <td>${item.option_type || ''}</td>
+                            <td>${item.position_size || ''}</td>
+                            <td>
+                                <button class="text-indigo-600 hover:text-indigo-800 mr-2 edit-btn" data-index="${index}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                optionDataTable.querySelector('tbody').innerHTML = html;
+                
+                // Add event listeners to edit buttons
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = this.getAttribute('data-index');
+                        openEditModal(optionData[index], index);
+                    });
+                });
+                
+                updateLastUpdated();
+            })
+            .catch(error => {
+                showToast('Error loading option data: ' + error, 'error');
+            });
+        }
+        
+        // Open edit modal with data
+        function openEditModal(data, index) {
+            editIndex.value = index;
+            
+            document.getElementById('edit-date').value = data.date.split('T')[0];
+            document.getElementById('edit-underlying-price').value = data.underlying_price;
+            document.getElementById('edit-strike-price').value = data.strike_price || '';
+            document.getElementById('edit-option-price').value = data.option_price || '';
+            document.getElementById('edit-iv').value = data.iv;
+            document.getElementById('edit-delta').value = data.delta;
+            document.getElementById('edit-expiration').value = data.expiration ? data.expiration.split('T')[0] : '';
+            document.getElementById('edit-option-type').value = data.option_type || 'call';
+            document.getElementById('edit-position-size').value = data.position_size || 1;
+            
+            editModal.classList.remove('hidden');
+        }
+        
+        // Close edit modal
+        function closeEditModal() {
+            editModal.classList.add('hidden');
+            editForm.reset();
+        }
+        
+        // Handle form submission for editing
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const index = editIndex.value;
+            const formData = new FormData(editForm);
+            const jsonData = {};
+            
+            for (const [key, value] of formData.entries()) {
+                if (key !== 'index') {
+                    jsonData[key] = value;
+                }
+            }
+            
+            // Submit data
+            fetch(`/api/option-data/${index}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(jsonData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    closeEditModal();
+                    loadOptionData();
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error updating data: ' + error, 'error');
+            });
+        });
+        
+        // Handle delete button
+        deleteBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to delete this data? This action cannot be undone.')) {
+                const index = editIndex.value;
+                
+                fetch(`/api/option-data/${index}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                        closeEditModal();
+                        loadOptionData();
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('Error deleting data: ' + error, 'error');
+                });
+            }
+        });
+        
+        // Event listeners for modal buttons
+        refreshBtn.addEventListener('click', loadOptionData);
+        closeModalBtn.addEventListener('click', closeEditModal);
+        cancelBtn.addEventListener('click', closeEditModal);
+        
+        // Initial data load
+        loadOptionData();
+    });
+</script>
+{% endblock %}
+
+<!-- templates/analysis.html -->
+{% extends "base.html" %}
+
+{% block title %}Analysis{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 gap-6">
+    <!-- Charts -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Price & Hedge History</h3>
+        <div id="price-chart" class="w-full h-[300px]"></div>
+    </div>
+    
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Implied Volatility</h3>
+        <div id="iv-chart" class="w-full h-[300px]"></div>
+    </div>
+    
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Option Delta</h3>
+        <div id="delta-chart" class="w-full h-[300px]"></div>
+    </div>
+    
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Hedge Position</h3>
+        <div id="position-chart" class="w-full h-[300px]"></div>
+    </div>
+    
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Available Capital</h3>
+        <div id="capital-chart" class="w-full h-[300px]"></div>
+    </div>
+    
+    <!-- Transactions Table -->
+    <div class="card">
+        <h3 class="text-xl font-semibold mb-4">Hedge Transactions</h3>
+        <div class="table-container">
+            <table class="table" id="transactions-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Action</th>
+                        <th>Shares</th>
+                        <th>Price</th>
+                        <th>Amount</th>
+                        <th>Fee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-gray-500">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const transactionsTable = document.getElementById('transactions-table');
+        
+        // Load all charts
+        function loadCharts() {
+            fetch('/api/plots')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'error') {
+                    showToast(data.message, 'error');
+                    return;
+                }
+                
+                // Parse JSON data for each plot
+                Plotly.newPlot('price-chart', JSON.parse(data.price));
+                Plotly.newPlot('iv-chart', JSON.parse(data.iv));
+                Plotly.newPlot('delta-chart', JSON.parse(data.delta));
+                Plotly.newPlot('position-chart', JSON.parse(data.position));
+                Plotly.newPlot('capital-chart', JSON.parse(data.capital));
+                
+                updateLastUpdated();
+            })
+            .catch(error => {
+                showToast('Error loading charts: ' + error, 'error');
+            });
+        }
+        
+        // Load transactions
+        function loadTransactions() {
+            fetch('/api/transactions')
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    transactionsTable.querySelector('tbody').innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-gray-500">No transactions yet</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                // Sort by date (most recent first)
+                data.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                let html = '';
+                data.forEach(tx => {
+                    html += `
+                        <tr>
+                            <td>${formatDate(tx.date)}</td>
+                            <td class="${tx.action === 'BUY' ? 'text-green-600' : 'text-red-600'}">${tx.action}</td>
+                            <td>${formatNumber(tx.shares)}</td>
+                            <td>${formatCurrency(tx.price)}</td>
+                            <td>${formatCurrency(tx.cost)}</td>
+                            <td>${formatCurrency(tx.transaction_fee || 0)}</td>
+                        </tr>
+                    `;
+                });
+                
+                transactionsTable.querySelector('tbody').innerHTML = html;
+            })
+            .catch(error => {
+                showToast('Error loading transactions: ' + error, 'error');
+            });
+        }
+        
+        // Load all data
+        function loadData() {
+            loadCharts();
+            loadTransactions();
+        }
+        
+        // Initial data load
+        loadData();
+        
+        // Set up auto-refresh (every 30 seconds)
+        setInterval(loadData, 30000);
+        
+        // Make charts responsive to window resize
+        window.addEventListener('resize', function() {
+            const charts = ['price-chart', 'iv-chart', 'delta-chart', 'position-chart', 'capital-chart'];
+            charts.forEach(id => {
+                const chart = document.getElementById(id);
+                if (chart) {
+                    Plotly.relayout(id, {
+                        'xaxis.autorange': true,
+                        'yaxis.autorange': true
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
