@@ -86,6 +86,80 @@
     </form>
 </div>
 
+<div class="card mb-6">
+    <h3 class="text-xl font-semibold mb-4">Add Underlying Stock Position</h3>
+    <form id="stock-position-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <input type="date" name="date" class="input w-full" required>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Stock Price</label>
+            <input type="number" name="price" step="0.01" min="0" class="input w-full" required placeholder="0.00">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Position Type</label>
+            <select name="position_type" class="select w-full" required>
+                <option value="LONG">Long (Buy)</option>
+                <option value="SHORT">Short (Sell)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Number of Shares</label>
+            <input type="number" name="shares" min="1" step="1" class="input w-full" required placeholder="100">
+        </div>
+        <div class="md:col-span-2 lg:col-span-3">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus mr-2"></i> Add Stock Position & Update Hedge
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Add this JavaScript to handle the form submission -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const stockPositionForm = document.getElementById('stock-position-form');
+    
+    // Prefill date field with today's date
+    const today = new Date().toISOString().split('T')[0];
+    stockPositionForm.querySelector('input[name="date"]').value = today;
+    
+    // Handle form submission
+    stockPositionForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(stockPositionForm);
+        const jsonData = {};
+        
+        for (const [key, value] of formData.entries()) {
+            jsonData[key] = value;
+        }
+        
+        // Submit data
+        fetch('/api/stock-position', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(jsonData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+                refreshDashboard();
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            showToast('Error submitting data: ' + error, 'error');
+        });
+    });
+});
+</script>
+
 <!-- Latest Hedge Recommendation -->
 <div class="card mb-6 hidden" id="hedge-recommendation">
     <h3 class="text-xl font-semibold mb-4">Hedge Recommendation</h3>
