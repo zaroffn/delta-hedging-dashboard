@@ -131,6 +131,114 @@
                     `;
                     return;
                 }
+                <!-- Add this section to templates/delta-hedging-dashboard-part6.html after the Option Data History section -->
+<div class="card mt-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">Stock Position History</h3>
+    </div>
+    
+    <div class="table-container">
+        <table class="table" id="stock-position-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>Shares</th>
+                    <th>Price</th>
+                    <th>Cost</th>
+                    <th>Fee</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-gray-500">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// Add this function to load stock position data
+function loadStockPositions() {
+    fetch('/api/transactions')
+    .then(response => response.json())
+    .then(data => {
+        const stockPositionTable = document.getElementById('stock-position-table');
+        
+        if (data.length === 0) {
+            stockPositionTable.querySelector('tbody').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-gray-500">No stock positions available</td>
+                </tr>
+            `;
+            return;
+        }
+        
+        let html = '';
+        data.forEach((tx, index) => {
+            html += `
+                <tr>
+                    <td>${formatDate(tx.date)}</td>
+                    <td class="${tx.action === 'LONG' || tx.action === 'BUY' ? 'text-green-600' : 'text-red-600'}">${tx.action}</td>
+                    <td>${formatNumber(tx.shares)}</td>
+                    <td>${formatCurrency(tx.price)}</td>
+                    <td>${formatCurrency(tx.cost)}</td>
+                    <td>${formatCurrency(tx.transaction_fee || 0)}</td>
+                    <td>${tx.type || 'HEDGE'}</td>
+                    <td>
+                        <button class="text-red-600 hover:text-red-800 delete-tx-btn" data-index="${index}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        stockPositionTable.querySelector('tbody').innerHTML = html;
+        
+        // Add event listeners to delete buttons
+        document.querySelectorAll('.delete-tx-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = this.getAttribute('data-index');
+                if (confirm('Are you sure you want to delete this stock transaction? This action cannot be undone.')) {
+                    fetch(`/api/transaction/${index}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast(data.message, 'success');
+                            loadStockPositions(); // Refresh the data table
+                        } else {
+                            showToast(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showToast('Error deleting transaction: ' + error, 'error');
+                    });
+                }
+            });
+        });
+    })
+    .catch(error => {
+        showToast('Error loading stock positions: ' + error, 'error');
+    });
+}
+
+// Call this function with the initial page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStockPositions();
+    
+    // Add a call to loadStockPositions in the refresh button click handler
+    document.getElementById('refresh-data-btn').addEventListener('click', function() {
+        loadOptionData();
+        loadStockPositions();
+    });
+});
+</script>
                 
                 // Group by date to get the option data entries
                 const optionData = [];
