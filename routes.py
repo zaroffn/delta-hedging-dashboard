@@ -264,6 +264,55 @@ def api_add_stock_position():
         return jsonify(result)
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error adding stock position: {str(e)}"})
+        # Add this route to routes.py
+@app.route('/api/transaction/<int:index>', methods=['DELETE'])
+def api_delete_transaction(index):
+    """API endpoint to delete a stock transaction"""
+    try:
+        if 0 <= index < len(hedger.stock_transactions):
+            # Get the transaction data before removing
+            transaction = hedger.stock_transactions[index]
+            
+            # Remove the transaction
+            hedger.stock_transactions.pop(index)
+            
+            # Recalculate position history
+            # This is more complex as we need to undo the transaction's effect
+            # Find the first position history entry after this transaction
+            transaction_date = dt.datetime.fromisoformat(transaction['date'])
+            start_index = 0
+            
+            for i, pos in enumerate(hedger.position_history):
+                pos_date = dt.datetime.fromisoformat(pos['date'])
+                if pos_date >= transaction_date:
+                    start_index = i
+                    break
+            
+            # Undo the transaction effect (reverse the stock change and capital change)
+            shares_adjustment = transaction['shares']
+            if transaction['action'] == 'LONG' or transaction['action'] == 'BUY':
+                shares_adjustment = -shares_adjustment  # Undo a buy by removing shares
+            else:
+                # For SHORT or SELL transactions, we add back the shares
+                pass
+            
+            # Update current stock position
+            hedger.current_stock_units += shares_adjustment
+            
+            # Update capital (add back the cost + fee)
+            hedger.current_capital += transaction['cost'] + transaction.get('transaction_fee', 0)
+            
+            # Recalculate position history from this point
+            hedger._recalculate_position_history(start_index)
+            
+            # Save the updated data
+            hedger.save_data()
+            
+            return jsonify({"status": "success", "message": "Transaction deleted successfully"})
+        else:
+            return jsonify({"status": "error", "message": "Invalid transaction index"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error deleting transaction: {str(e)}"})
 
 # README.md - Setup Instructions
 """
