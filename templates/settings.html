@@ -292,6 +292,38 @@
 </script>
 <script src="/themes/pastebin/js/vendors.bundle.js?30d6ece6979ee0cf5531"></script>
 <script src="/themes/pastebin/js/app.bundle.js?30d6ece6979ee0cf5531"></script>
-
+// Add this to the scripts section of your settings.html file
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the clear data button
+    const clearDataBtn = document.getElementById('clear-data-btn');
+    
+    // Add event listener for clear data button
+    if (clearDataBtn) {
+        clearDataBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all hedge data? This action cannot be undone.')) {
+                fetch('/api/clear-data', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                        // Reload the page to reflect the cleared data
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('Error clearing data: ' + error, 'error');
+                });
+            }
+        });
+    } else {
+        console.error('Clear data button not found in the DOM');
+    }
+});
 </body>
 </html>
