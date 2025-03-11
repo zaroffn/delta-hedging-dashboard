@@ -31,7 +31,27 @@
 <link href="/themes/pastebin/css/app.bundle.css?30d6ece6979ee0cf5531" rel="stylesheet">
     </head>
 <body class="night-auto " data-pr="" data-pa="x2xy94pJ" data-sar="1" data-abd="1" data-bd="1">
+<button id="single-reset-btn" class="btn btn-danger px-8 py-3" onclick="resetData()">
+    <i class="fas fa-trash mr-2"></i> Reset Everything
+</button>
 
+<script>
+function resetData() {
+    if (confirm('Are you sure you want to reset all data?')) {
+        fetch('/api/reset-data', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            window.location.reload();
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+}
+</script>
 
 <svg style="height: 0; width: 0; position: absolute; visibility: hidden" xmlns="http://www.w3.org/2000/svg">
     <symbol id="add" viewBox="0 0 1024 1024"><path fill="#ccc" d="M512 16C238 16 16 238 16 512s222 496 496 496 496-222 496-496S786 16 512 16z m288 552c0 13.2-10.8 24-24 24h-184v184c0 13.2-10.8 24-24 24h-112c-13.2 0-24-10.8-24-24v-184h-184c-13.2 0-24-10.8-24-24v-112c0-13.2 10.8-24 24-24h184v-184c0-13.2 10.8-24 24-24h112c13.2 0 24 10.8 24 24v184h184c13.2 0 24 10.8 24 24v112z"/></symbol>
