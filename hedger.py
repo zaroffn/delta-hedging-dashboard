@@ -23,33 +23,37 @@ class DeltaHedger:
         self.current_capital: float = 0
         self.transaction_costs: Dict = {'stock_fixed': 0, 'stock_percentage': 0}
         self.filename = filename
-        def add_stock_position(self, date, price, position_type, shares):
-    """Add a direct stock position (long or short)"""
-    # Convert shares to positive or negative based on position type
-    actual_shares = shares if position_type == 'LONG' else -shares
-    
-    # Calculate transaction cost
-    transaction_cost = self._calculate_transaction_cost(abs(actual_shares), price)
-    
-    # Update capital
-    position_cost = abs(actual_shares) * price
-    self.current_capital -= (position_cost + transaction_cost)
-    
-    # Update stock position
-    self.current_stock_units += actual_shares
-    
-    # Record the transaction
-    transaction = {
-        'date': date.isoformat(),
-        'shares': abs(actual_shares),
-        'price': price,
-        'action': position_type,
-        'cost': position_cost,
-        'transaction_fee': transaction_cost,
-        'type': 'MANUAL'  # Flag to indicate a manual position vs. a hedge adjustment
-    }
-    
-    self.stock_transactions.append(transaction)
+        
+        # Load data if exists
+        self.load_data()
+        
+    def add_stock_position(self, date, price, position_type, shares):
+        """Add a direct stock position (long or short)"""
+        # Convert shares to positive or negative based on position type
+        actual_shares = shares if position_type == 'LONG' else -shares
+        
+        # Calculate transaction cost
+        transaction_cost = self._calculate_transaction_cost(abs(actual_shares), price)
+        
+        # Update capital
+        position_cost = abs(actual_shares) * price
+        self.current_capital -= (position_cost + transaction_cost)
+        
+        # Update stock position
+        self.current_stock_units += actual_shares
+        
+        # Record the transaction
+        transaction = {
+            'date': date.isoformat(),
+            'shares': abs(actual_shares),
+            'price': price,
+            'action': position_type,
+            'cost': position_cost,
+            'transaction_fee': transaction_cost,
+            'type': 'MANUAL'  # Flag to indicate a manual position vs. a hedge adjustment
+        }
+        
+        self.stock_transactions.append(transaction)
     
     # Add to position history
     if self.position_history:
