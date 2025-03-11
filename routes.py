@@ -3,21 +3,6 @@ from flask import render_template, request, jsonify, redirect, url_for
 import datetime as dt
 from app import OptionData
 
-@app.route('/api/reset-data', methods=['POST'])
-def api_reset_data():
-    try:
-        hedger.options_data = []
-        hedger.position_history = []
-        hedger.stock_transactions = []
-        hedger.initial_capital = 100000
-        hedger.current_capital = 100000
-        hedger.current_stock_units = 0
-        hedger.transaction_costs = {'stock_fixed': 0, 'stock_percentage': 0}
-        hedger.save_data()
-        return jsonify({"status": "success", "message": "All data has been reset successfully"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
 def configure_routes(app, hedger):
     @app.route('/')
     def index():
@@ -251,6 +236,21 @@ def add_data_routes(app, hedger):
             return jsonify({"status": "success", "message": "All data cleared successfully"})
         except Exception as e:
             return jsonify({"status": "error", "message": f"Error clearing data: {str(e)}"})
+
+@app.route('/api/reset-data', methods=['POST'])
+def api_reset_data():
+    try:
+        hedger.options_data = []
+        hedger.position_history = []
+        hedger.stock_transactions = []
+        hedger.initial_capital = 100000
+        hedger.current_capital = 100000
+        hedger.current_stock_units = 0
+        hedger.transaction_costs = {'stock_fixed': 0, 'stock_percentage': 0}
+        hedger.save_data()
+        return jsonify({"status": "success", "message": "All data has been reset successfully"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 # Update the configure_routes function to include data routes
 def configure_routes(app, hedger):
